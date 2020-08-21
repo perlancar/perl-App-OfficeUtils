@@ -139,4 +139,6 @@ This distributions provides the following command-line utilities:
 
 =head1 SEE ALSO
 
+L<App::MSOfficeUtils>, L<App::LibreOfficeUtils>
+
 =cut
