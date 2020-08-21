@@ -55,6 +55,10 @@ _
         %arg0_input_file,
         %arg0_output_file,
         %argopt_overwrite,
+        fmt => {
+            summary => 'Run Unix fmt over the txt output',
+            schema => 'bool*',
+        },
     },
 };
 sub officewp2txt {
@@ -81,16 +85,30 @@ sub officewp2txt {
             return [412, "Output file '$output_file' already exists, not overwriting (use --overwrite (-O) to overwrite)"];
         }
 
-        my $temp_file = File::Temp::tempfile("XXXXXXXX", SUFFIX => ".$ext");
+        my $tempdir = File::Temp::tempdir(CLEANUP => 1);
+        my ($temp_fh, $temp_file) = File::Temp::tempfile(undef, SUFFIX => ".$ext", DIR => $tempdir);
         (my $temp_out_file = $temp_file) =~ s/\.\w+\z/.txt/;
-        -e $temp_out_file and return [500, "Output temp file '$temp_out_file' should not already exist"];
         File::Copy::copy($input_file, $temp_file) or do {
             return [500, "Can't copy '$input_file' to '$temp_file': $!"];
         };
         # XXX check that $temp_file/.doc/.txt doesn't exist yet
         IPC::System::Options::system(
             {die=>1, log=>1},
-            "libreoffice", "--headless", "--convert-to", "txt:Text (encoded):UTF8", $temp_file);
+            "libreoffice", "--headless", "--convert-to", "txt:Text (encoded):UTF8", $temp_file, "--outdir", $tempdir);
+
+      FMT: {
+            last unless $args{fmt};
+            return [412, "fmt is not in PATH"] unless File::Which::which("fmt");
+            my $stdout;
+            IPC::System::Options::system(
+                {die=>1, log=>1, capture_stdout=>\$stdout},
+                "fmt", $temp_out_file,
+            );
+            open my $fh, ">" , "$temp_out_file.fmt" or return [500, "Can't open '$temp_out_file.fmt': $!"];
+            print $fh $stdout;
+            close $fh;
+            $temp_out_file .= ".fmt";
+        }
 
         if (defined $output_file) {
             File::Copy::copy($temp_out_file, $output_file) or do {
@@ -99,6 +117,7 @@ sub officewp2txt {
             return [200, "OK"];
         } else {
             open my $fh, "<", $temp_out_file or return [500, "Can't open '$temp_out_file': $!"];
+            local $/;
             my $content = <$fh>;
             close $fh;
             return [200, "OK", $content, {"cmdline.skip_format"=>1}];
