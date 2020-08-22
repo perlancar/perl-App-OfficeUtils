@@ -12,6 +12,13 @@ use Log::ger;
 
 our %SPEC;
 
+our %args_libreoffice = (
+    libreoffice_path => {
+        schema => 'filename*',
+        tags => ['category:libreoffice'],
+    },
+);
+
 our %arg0_input_file = (
     input_file => {
         summary => 'Path to input file',
@@ -55,6 +62,18 @@ _
         %arg0_input_file,
         %arg0_output_file,
         %argopt_overwrite,
+        %args_libreoffice,
+        return_output_file => {
+            summary => 'Return the path of output file instead',
+            schema => 'bool*',
+            description => <<'_',
+
+This is useful when you do not specify an output file but do not want to show
+the converted document to stdout, but instead want to get the path to a
+temporary output file.
+
+_
+        },
         fmt => {
             summary => 'Run Unix fmt over the txt output',
             schema => 'bool*',
@@ -70,7 +89,10 @@ sub officewp2txt {
     require IPC::System::Options;
 
   USE_LIBREOFFICE: {
-        unless (File::Which::which("libreoffice")) {
+        my $libreoffice_path = $args{libreoffice_path} //
+            File::Which::which("libreoffice") //
+              File::Which::which("soffice");
+        unless (defined $libreoffice_path) {
             log_debug "libreoffice is not in PATH, skipped trying to use libreoffice";
             last;
         }
@@ -85,7 +107,7 @@ sub officewp2txt {
             return [412, "Output file '$output_file' already exists, not overwriting (use --overwrite (-O) to overwrite)"];
         }
 
-        my $tempdir = File::Temp::tempdir(CLEANUP => 1);
+        my $tempdir = File::Temp::tempdir(CLEANUP => !$args{return_output_file});
         my ($temp_fh, $temp_file) = File::Temp::tempfile(undef, SUFFIX => ".$ext", DIR => $tempdir);
         (my $temp_out_file = $temp_file) =~ s/\.\w+\z/.txt/;
         File::Copy::copy($input_file, $temp_file) or do {
@@ -94,7 +116,7 @@ sub officewp2txt {
         # XXX check that $temp_file/.doc/.txt doesn't exist yet
         IPC::System::Options::system(
             {die=>1, log=>1},
-            "libreoffice", "--headless", "--convert-to", "txt:Text (encoded):UTF8", $temp_file, "--outdir", $tempdir);
+            $libreoffice_path, "--headless", "--convert-to", "txt:Text (encoded):UTF8", $temp_file, "--outdir", $tempdir);
 
       FMT: {
             last unless $args{fmt};
@@ -110,11 +132,15 @@ sub officewp2txt {
             $temp_out_file .= ".fmt";
         }
 
-        if (defined $output_file) {
-            File::Copy::copy($temp_out_file, $output_file) or do {
-                return [500, "Can't copy '$temp_out_file' to '$output_file': $!"];
-            };
-            return [200, "OK"];
+        if (defined $output_file || $args{return_output_file}) {
+            if (defined $output_file) {
+                File::Copy::copy($temp_out_file, $output_file) or do {
+                    return [500, "Can't copy '$temp_out_file' to '$output_file': $!"];
+                };
+            } else {
+                $output_file = $temp_out_file;
+            }
+            return [200, "OK", $args{return_output_file} ? $output_file : undef];
         } else {
             open my $fh, "<", $temp_out_file or return [500, "Can't open '$temp_out_file': $!"];
             local $/;
