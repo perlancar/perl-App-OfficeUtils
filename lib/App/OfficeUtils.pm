@@ -62,6 +62,20 @@ our %argopt_overwrite = (
     },
 );
 
+our %argopt_return_output_file = (
+    return_output_file => {
+        summary => 'Return the path of output file instead',
+        schema => 'bool*',
+        description => <<'_',
+
+This is useful when you do not specify an output file but do not want to show
+the converted document to stdout, but instead want to get the path to a
+temporary output file.
+
+_
+    },
+);
+
 $SPEC{officewp2txt} = {
     v => 1.1,
     summary => 'Convert Office word-processor format file (.doc, .docx, .odt, etc) to .txt',
@@ -77,17 +91,7 @@ _
         %arg1_output_file,
         %argopt_overwrite,
         %args_libreoffice,
-        return_output_file => {
-            summary => 'Return the path of output file instead',
-            schema => 'bool*',
-            description => <<'_',
-
-This is useful when you do not specify an output file but do not want to show
-the converted document to stdout, but instead want to get the path to a
-temporary output file.
-
-_
-        },
+        %argopt_return_output_file,
         fmt => {
             summary => 'Run Unix fmt over the txt output',
             schema => 'bool*',
