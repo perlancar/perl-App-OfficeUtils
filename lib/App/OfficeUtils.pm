@@ -28,7 +28,7 @@ our %arg0_input_file = (
     },
 );
 
-our %arg0_output_file = (
+our %arg1_output_file = (
     output_file => {
         summary => 'Path to output file',
         schema => 'filename*',
@@ -60,7 +60,7 @@ This utility uses one of the following backends:
 _
     args => {
         %arg0_input_file,
-        %arg0_output_file,
+        %arg1_output_file,
         %argopt_overwrite,
         %args_libreoffice,
         return_output_file => {
