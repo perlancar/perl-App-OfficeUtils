@@ -89,6 +89,7 @@ sub officewp2txt {
 
     require File::Copy;
     require File::Temp;
+    require File::Temp::MoreUtils;
     require File::Which;
     require IPC::System::Options;
 
@@ -112,12 +113,11 @@ sub officewp2txt {
         }
 
         my $tempdir = File::Temp::tempdir(CLEANUP => !$args{return_output_file});
-        my ($temp_fh, $temp_file) = File::Temp::tempfile(undef, SUFFIX => ".$ext", DIR => $tempdir);
+        my ($temp_fh, $temp_file)      = File::Temp::MoreUtils::tempfile_named(name=>$input_file, dir=>$tempdir);
         (my $temp_out_file = $temp_file) =~ s/\.\w+\z/.txt/;
         File::Copy::copy($input_file, $temp_file) or do {
             return [500, "Can't copy '$input_file' to '$temp_file': $!"];
         };
-        # XXX check that $temp_file/.doc/.txt doesn't exist yet
         IPC::System::Options::system(
             {die=>1, log=>1},
             $libreoffice_path, "--headless", "--convert-to", "txt:Text (encoded):UTF8", $temp_file, "--outdir", $tempdir);
